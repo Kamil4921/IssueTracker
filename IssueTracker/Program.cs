@@ -1,87 +1,123 @@
+using IssueTracker.Core.Commands.CloseIssuesStrategies;
+using IssueTracker.Core.Commands.PostIssuesStrategies;
+using IssueTracker.Core.Commands.UpdateIssuesStrategies;
+using IssueTracker.Core.Domain;
 using Microsoft.AspNetCore.Mvc;
+using Polly;
 
 var builder = WebApplication.CreateBuilder(args);
-
-var configuration = builder.Configuration;
+builder.Services.AddHttpClient("GitClient").AddTransientHttpErrorPolicy(policy =>
+    policy.WaitAndRetryAsync(3, retry => TimeSpan.FromSeconds(Math.Pow(2, retry))));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddHttpClient();
+
+builder.Services.AddTransient<IAddIssue, AddGitHubIssue>();
+builder.Services.AddTransient<IAddIssue, AddGitLabIssue>();
+builder.Services.AddTransient<IUpdateIssue, UpdateGitHubIssue>();
+builder.Services.AddTransient<IUpdateIssue, UpdateGitLabIssue>();
+builder.Services.AddTransient<ICloseIssue, CloseGitHubIssue>();
+builder.Services.AddTransient<ICloseIssue, CloseGitLabIssue>();
 
 var app = builder.Build();
 
 app.UseSwagger();
 app.UseSwaggerUI();
-
 app.UseHttpsRedirection();
 
-var tokenGh = configuration["GitHub:AccessToken"];
-var tokenGl = configuration["GitLab:AccessToken"];
-
-
-app.MapPost("/issues/create", async (string owner, string repo, [FromBody]IssueDto dto, string? token, IHttpClientFactory httpClientFactory) =>
+app.MapPost("/issue/create", async (string provider, [FromHeader] string accessToken,
+    [FromHeader] string? gitHubUserName,
+    [FromHeader] string? gitHubRepository, [FromHeader] int? gitLabProjectId, [FromBody] IssueDto dto,
+    IHttpClientFactory httpClientFactory,
+    [FromServices] IEnumerable<IAddIssue> issueStrategies) =>
 {
-    var client = httpClientFactory.CreateClient();
-   
-    var request = new HttpRequestMessage(HttpMethod.Post, $"https://api.github.com/repos/{owner}/{repo}/issues");
-    
-    request.Headers.Add("Authorization", $"Bearer {tokenGh}");
-    request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
-    request.Headers.Add("User-Agent", "IssueTracker");
-    var issue = new
+    var headers = new HeaderDto(accessToken, gitHubUserName, gitHubRepository, gitLabProjectId);
+    var client = httpClientFactory.CreateClient("GitClient");
+    if (!Enum.TryParse<Providers>(provider, out var parsedProvider))
     {
-        title = dto.Title,
-        body = dto.Body
-    };
-    var json = System.Text.Json.JsonSerializer.Serialize(issue);
-    var content = new StringContent(json, null, "application/json");
-    request.Content = content;
-    
-
-    var response = await client.SendAsync(request);
-
-    if (!response.IsSuccessStatusCode)
-    {
-        var errorContent = await response.Content.ReadAsStringAsync();
-        Console.WriteLine($"Error: {response.StatusCode}, {errorContent}");
-        return Results.StatusCode((int)response.StatusCode);
+        return Results.BadRequest(new { message = "Invalid provider name" });
     }
-    
-    response.EnsureSuccessStatusCode();
 
-    return Results.Ok(new { message = "Issue Created" });
+    IAddIssue? strategy = parsedProvider switch
+    {
+        Providers.GitHub => issueStrategies.OfType<AddGitHubIssue>().FirstOrDefault(),
+        Providers.GitLab => issueStrategies.OfType<AddGitLabIssue>().FirstOrDefault(),
+        _ => null
+    };
+
+    if (strategy is null)
+    {
+        return Results.BadRequest("Invalid provider name");
+    }
+
+    var result = await strategy.AddIssueAsync(dto, client, headers);
+
+    return result.IsSuccessStatusCode
+        ? Results.Created(result.Headers.Location, result)
+        : Results.Problem(await result.Content.ReadAsStringAsync(), statusCode: (int)result.StatusCode);
 }).WithOpenApi();
 
-app.MapPost("/issuesGitLab/create", async (int project, [FromBody]IssueDto dto, string? token, IHttpClientFactory httpClientFactory) =>
+app.MapPatch("/issue/update", async (string provider, int issueNumber, [FromHeader] string accessToken,
+    [FromHeader] string? gitHubUserName,
+    [FromHeader] string? gitHubRepository, [FromHeader] int? gitLabProjectId, [FromBody] IssueDto dto,
+    IHttpClientFactory httpClientFactory,
+    [FromServices] IEnumerable<IUpdateIssue> issueStrategies) =>
 {
-    var client = httpClientFactory.CreateClient();
-   
-    var request = new HttpRequestMessage(HttpMethod.Post, $"https://gitlab.com/api/v4/projects/{project}/issues");
-    
-    request.Headers.Add("PRIVATE-TOKEN", tokenGl);
-    request.Headers.Add("User-Agent", "IssueTracker");
-    var issue = new
+    var headers = new HeaderDto(accessToken, gitHubUserName, gitHubRepository, gitLabProjectId);
+    var client = httpClientFactory.CreateClient("GitClient");
+    if (!Enum.TryParse<Providers>(provider, out var parsedProvider))
     {
-        title = dto.Title
-    };
-    var json = System.Text.Json.JsonSerializer.Serialize(issue);
-    var content = new StringContent(json, null, "application/json");
-    request.Content = content;
-    
-    var response = await client.SendAsync(request);
-
-    if (!response.IsSuccessStatusCode)
-    {
-        var errorContent = await response.Content.ReadAsStringAsync();
-        Console.WriteLine($"Error: {response.StatusCode}, {errorContent}");
-        return Results.StatusCode((int)response.StatusCode);
+        return Results.BadRequest(new { message = "Invalid provider name" });
     }
-    
-    response.EnsureSuccessStatusCode();
 
-    return Results.Ok(new { message = "Issue Created" });
+    IUpdateIssue? strategy = parsedProvider switch
+    {
+        Providers.GitHub => issueStrategies.OfType<UpdateGitHubIssue>().FirstOrDefault(),
+        Providers.GitLab => issueStrategies.OfType<UpdateGitLabIssue>().FirstOrDefault(),
+        _ => null
+    };
+
+    if (strategy is null)
+    {
+        return Results.BadRequest("Invalid provider name");
+    }
+
+    var result = await strategy.UpdateIssueAsync(dto, client, issueNumber, headers);
+
+    return result.IsSuccessStatusCode
+        ? Results.Ok("Issue Updated")
+        : Results.Problem(await result.Content.ReadAsStringAsync(), statusCode: (int)result.StatusCode);
 }).WithOpenApi();
 
+app.MapPatch("/closeIssue", async (string provider, int issueNumber, [FromHeader] string accessToken,
+    [FromHeader] string? gitHubUserName,
+    [FromHeader] string? gitHubRepository, [FromHeader] int? gitLabProjectId,
+    IHttpClientFactory httpClientFactory,
+    [FromServices] IEnumerable<ICloseIssue> issueStrategies) =>
+{
+    var headers = new HeaderDto(accessToken, gitHubUserName, gitHubRepository, gitLabProjectId);
+    var client = httpClientFactory.CreateClient("GitClient");
+    if (!Enum.TryParse<Providers>(provider, out var parsedProvider))
+    {
+        return Results.BadRequest(new { message = "Invalid provider name" });
+    }
+
+    ICloseIssue? strategy = parsedProvider switch
+    {
+        Providers.GitHub => issueStrategies.OfType<CloseGitHubIssue>().FirstOrDefault(),
+        Providers.GitLab => issueStrategies.OfType<CloseGitLabIssue>().FirstOrDefault(),
+        _ => null
+    };
+
+    if (strategy is null)
+    {
+        return Results.BadRequest("Invalid provider name");
+    }
+
+    var result = await strategy.UpdateIssueStateAsync(client, issueNumber, headers);
+
+    return result.IsSuccessStatusCode
+        ? Results.Ok("Issue Closed")
+        : Results.Problem(await result.Content.ReadAsStringAsync(), statusCode: (int)result.StatusCode);
+});
 app.Run();
-
-public class IssueDto { public string Title { get; set; } public string Body { get; set; } }
