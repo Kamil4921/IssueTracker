@@ -9,7 +9,12 @@ The purpose of this project is to create, update and close issues on GitHub and 
 - Then go
   ```bash
   http://localhost:8080/swagger/
-  
+- In case you want to use it with https you can use image 1.1:
+  ```bash
+  docker run -d -p 5001:5001 kamil4921/issuetracker:1.1
+- And then go to
+  ```bash
+  https://localhost:5001/swagger/index.html
 ## Functionalities
 
 ### 1. Adding new issue 
