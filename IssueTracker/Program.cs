@@ -51,9 +51,9 @@ app.MapPost("/issue/create", async (string provider, [FromHeader] string accessT
     }
 
     var result = await strategy.AddIssueAsync(dto, client, headers);
-
+    
     return result.IsSuccessStatusCode
-        ? Results.Created(result.Headers.Location, result)
+        ? Results.Created(result.Headers.Location, await result.Content.ReadAsStringAsync())
         : Results.Problem(await result.Content.ReadAsStringAsync(), statusCode: (int)result.StatusCode);
 }).WithOpenApi();
 
