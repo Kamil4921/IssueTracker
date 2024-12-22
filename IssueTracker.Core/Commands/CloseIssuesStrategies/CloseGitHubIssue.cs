@@ -17,7 +17,7 @@ public class CloseGitHubIssue(IConfiguration configuration, ILogger<CloseGitHubI
             return new HttpResponseMessage
             {
                 StatusCode = HttpStatusCode.BadRequest,
-                Content = new StringContent("Wrong GitHubUserName or GitHubRepository")
+                Content = new StringContent("Empty GitHubUserName or GitHubRepository")
             };
         }
 
