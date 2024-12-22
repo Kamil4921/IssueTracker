@@ -1,3 +1,7 @@
 namespace IssueTracker.Core.Domain;
 
-public record HeaderDto(string AccessToken, string? GitHubUserName, string? GitHubRepository, int? GitLabProjectId);
+public record HeaderDto(
+    string AccessToken,
+    string? GitHubUserName,
+    string? GitHubRepository,
+    int? GitLabProjectId);
