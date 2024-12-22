@@ -2,6 +2,7 @@ using IssueTracker.Core.Commands.CloseIssuesStrategies;
 using IssueTracker.Core.Commands.PostIssuesStrategies;
 using IssueTracker.Core.Commands.UpdateIssuesStrategies;
 using IssueTracker.Core.Domain;
+using IssueTracker.Core.Helpers;
 using Microsoft.AspNetCore.Mvc;
 using Polly;
 
@@ -27,30 +28,20 @@ app.UseHttpsRedirection();
 
 app.MapPost("/issue/create", async (string provider, [FromHeader] string accessToken,
     [FromHeader] string? gitHubUserName,
-    [FromHeader] string? gitHubRepository, [FromHeader] int? gitLabProjectId, [FromBody] IssueDto dto,
+    [FromHeader] string? gitHubRepository, [FromHeader] int? gitLabProjectId, [FromBody] IssueDto issueDto,
     IHttpClientFactory httpClientFactory,
     [FromServices] IEnumerable<IAddIssue> issueStrategies) =>
 {
     var headers = new HeaderDto(accessToken, gitHubUserName, gitHubRepository, gitLabProjectId);
     var client = httpClientFactory.CreateClient("GitClient");
-    if (!Enum.TryParse<Providers>(provider, out var parsedProvider))
-    {
-        return Results.BadRequest(new { message = "Invalid provider name" });
-    }
-
-    IAddIssue? strategy = parsedProvider switch
-    {
-        Providers.GitHub => issueStrategies.OfType<AddGitHubIssue>().FirstOrDefault(),
-        Providers.GitLab => issueStrategies.OfType<AddGitLabIssue>().FirstOrDefault(),
-        _ => null
-    };
-
+    var strategy = StrategyHelper.GetProviderStrategy(provider, issueStrategies);
+    
     if (strategy is null)
     {
         return Results.BadRequest("Invalid provider name");
     }
 
-    var result = await strategy.AddIssueAsync(dto, client, headers);
+    var result = await strategy.AddIssueAsync(issueDto, client, headers);
     
     return result.IsSuccessStatusCode
         ? Results.Created(result.Headers.Location, await result.Content.ReadAsStringAsync())
@@ -59,30 +50,20 @@ app.MapPost("/issue/create", async (string provider, [FromHeader] string accessT
 
 app.MapPatch("/issue/update", async (string provider, int issueNumber, [FromHeader] string accessToken,
     [FromHeader] string? gitHubUserName,
-    [FromHeader] string? gitHubRepository, [FromHeader] int? gitLabProjectId, [FromBody] IssueDto dto,
+    [FromHeader] string? gitHubRepository, [FromHeader] int? gitLabProjectId, [FromBody] IssueDto issueDto,
     IHttpClientFactory httpClientFactory,
     [FromServices] IEnumerable<IUpdateIssue> issueStrategies) =>
 {
     var headers = new HeaderDto(accessToken, gitHubUserName, gitHubRepository, gitLabProjectId);
     var client = httpClientFactory.CreateClient("GitClient");
-    if (!Enum.TryParse<Providers>(provider, out var parsedProvider))
-    {
-        return Results.BadRequest(new { message = "Invalid provider name" });
-    }
-
-    IUpdateIssue? strategy = parsedProvider switch
-    {
-        Providers.GitHub => issueStrategies.OfType<UpdateGitHubIssue>().FirstOrDefault(),
-        Providers.GitLab => issueStrategies.OfType<UpdateGitLabIssue>().FirstOrDefault(),
-        _ => null
-    };
+    var strategy = StrategyHelper.GetProviderStrategy(provider, issueStrategies);
 
     if (strategy is null)
     {
         return Results.BadRequest("Invalid provider name");
     }
 
-    var result = await strategy.UpdateIssueAsync(dto, client, issueNumber, headers);
+    var result = await strategy.UpdateIssueAsync(issueDto, client, issueNumber, headers);
 
     return result.IsSuccessStatusCode
         ? Results.Ok("Issue Updated")
@@ -97,17 +78,7 @@ app.MapPatch("/closeIssue", async (string provider, int issueNumber, [FromHeader
 {
     var headers = new HeaderDto(accessToken, gitHubUserName, gitHubRepository, gitLabProjectId);
     var client = httpClientFactory.CreateClient("GitClient");
-    if (!Enum.TryParse<Providers>(provider, out var parsedProvider))
-    {
-        return Results.BadRequest(new { message = "Invalid provider name" });
-    }
-
-    ICloseIssue? strategy = parsedProvider switch
-    {
-        Providers.GitHub => issueStrategies.OfType<CloseGitHubIssue>().FirstOrDefault(),
-        Providers.GitLab => issueStrategies.OfType<CloseGitLabIssue>().FirstOrDefault(),
-        _ => null
-    };
+    var strategy = StrategyHelper.GetProviderStrategy(provider, issueStrategies);
 
     if (strategy is null)
     {
