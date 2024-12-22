@@ -7,9 +7,8 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NUnit.Framework;
 
-namespace IssueTracker.Tests;
+namespace IssueTracker.Tests.GitHubTests;
 
-[TestFixture]
 public class UpdateGitHubIssueTests
 {
     private IConfiguration _configuration;
