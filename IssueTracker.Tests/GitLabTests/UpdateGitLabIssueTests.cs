@@ -44,7 +44,7 @@ public class UpdateGitLabIssueTests
         var response = await _updateGitLabIssue.UpdateIssueAsync(_testIssue, _httpClient, 1, headers);
 
         // Assert
-        Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
         _logger.Received().LogError("GitLab ProjectId is null");
     }
 
@@ -61,6 +61,6 @@ public class UpdateGitLabIssueTests
         var response = await _updateGitLabIssue.UpdateIssueAsync(_testIssue, _httpClient, 1, headers);
 
         // Assert
-        Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 }

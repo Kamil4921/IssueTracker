@@ -42,9 +42,9 @@ public class CloseGitHubIssueTests
         var response = await _closeGitHubIssue.UpdateIssueStateAsync(_httpClient, 1, headers);
 
         // Assert
-        Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
         var content = await response.Content.ReadAsStringAsync();
-        Assert.AreEqual("Empty GitHubUserName or GitHubRepository", content);
+        Assert.That(content, Is.EqualTo("Empty GitHubUserName or GitHubRepository"));
         _logger.Received().LogError("Github UserName or repositoryName are null or empty. GitHubUserName: , GitHubRepository: ");
     }
 
@@ -61,7 +61,7 @@ public class CloseGitHubIssueTests
         var response = await _closeGitHubIssue.UpdateIssueStateAsync(_httpClient, 1, headers);
 
         // Assert
-        Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         _logger.DidNotReceiveWithAnyArgs().LogError(default);
     }
 
@@ -79,7 +79,7 @@ public class CloseGitHubIssueTests
         var response = await _closeGitHubIssue.UpdateIssueStateAsync(_httpClient, 1, headers);
 
         // Assert
-        Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
         _logger.Received().LogError("Internal Server Error");
     }
 }

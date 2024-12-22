@@ -41,7 +41,7 @@ public class CloseGitLabIssueTests
         var response = await _closeGitLabIssue.UpdateIssueStateAsync(_httpClient, 1, headers);
 
         // Assert
-        Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
         _logger.Received().LogError("GitLab ProjectId is null");
     }
 
@@ -58,7 +58,7 @@ public class CloseGitLabIssueTests
         var response = await _closeGitLabIssue.UpdateIssueStateAsync(_httpClient, 1, headers);
 
         // Assert
-        Assert.AreEqual(HttpStatusCode.Created, response.StatusCode);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
         _logger.DidNotReceiveWithAnyArgs().LogError(default);
     }
 
@@ -76,7 +76,7 @@ public class CloseGitLabIssueTests
         var response = await _closeGitLabIssue.UpdateIssueStateAsync(_httpClient, 1, headers);
 
         // Assert
-        Assert.AreEqual(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.InternalServerError));
         _logger.Received().LogError("Internal Server Error");
     }
 }
